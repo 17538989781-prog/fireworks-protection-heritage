@@ -1,4 +1,4 @@
-[
+window.HERITAGE_DATA = [
   {"id":1,"city":"安阳","name":"安阳红色文化遗址","location":"河南省安阳市","image":"./static/images/default-heritage.svg","basicInfo":"安阳红色文化遗址承载了重要革命记忆，是当地爱国主义教育的重要资源。","history":"安阳在革命时期发挥了重要作用，相关遗址见证了地方群众与革命力量共同奋斗的历程。","features":"遗址兼具历史价值与教育意义，适合开展红色研学与主题教育活动。","address":"河南省安阳市","specialties":["樱桃","金丝皇菊","水冶油酥烧饼","安阳三熏","道口烧鸡"]},
   {"id":2,"city":"商丘","name":"商丘红色文化遗址","location":"河南省商丘市","image":"./static/images/default-heritage.svg","basicInfo":"商丘红色文化遗址集中展示了豫东地区革命历史文化资源。","history":"商丘在解放战争等重要历史阶段留下了丰富遗址与文献。","features":"历史脉络清晰、教育主题鲜明，是区域红色文化传播的重要载体。","address":"河南省商丘市","specialties":["胡辣汤","永城大枣","柘城三樱椒","民权葡萄酒","宁陵金顶谢花酥梨"]},
   {"id":3,"city":"郑州","name":"郑州红色文化遗址","location":"河南省郑州市","image":"./static/images/default-heritage.svg","basicInfo":"郑州红色文化遗址展现了省会城市在近现代革命史中的关键节点。","history":"郑州作为交通枢纽，在革命传播、组织动员和战略联系中意义突出。","features":"遗址分布广、类型多，兼具城市记忆与红色精神传承价值。","address":"河南省郑州市","specialties":["烩面","新郑大枣","黄河鲤鱼","中牟大蒜","荥阳柿子"]},
@@ -17,4 +17,4 @@
   {"id":16,"city":"鹤壁","name":"鹤壁红色文化遗址","location":"河南省鹤壁市","image":"./static/images/default-heritage.svg","basicInfo":"鹤壁红色文化遗址记录了豫北地区革命历史与地方文化传承。","history":"鹤壁在革命发展过程中形成了一批有代表性的历史纪念资源。","features":"遗址体量适中、主题集中，便于公众了解与传播。","address":"河南省鹤壁市","specialties":["浚县石子馍","淇河鲫鱼","缠丝鸭蛋","无核枣","王桥豆腐"]},
   {"id":17,"city":"濮阳","name":"濮阳红色文化遗址","location":"河南省濮阳市","image":"./static/images/default-heritage.svg","basicInfo":"濮阳红色文化遗址体现了冀鲁豫交界区域的重要革命记忆。","history":"濮阳在革命时期承担了多项基层组织与群众动员任务。","features":"区位特色明显，历史资源具有跨区域研究价值。","address":"河南省濮阳市","specialties":["濮阳壮馍","清丰白灵菇","范县大米","南乐牙枣","台前小尾寒羊"]},
   {"id":18,"city":"济源","name":"济源红色文化遗址","location":"河南省济源市","image":"./static/images/default-heritage.svg","basicInfo":"济源红色文化遗址反映了太行南麓地区革命历史与精神风貌。","history":"济源在革命年代保留了丰富的基层斗争与建设记忆。","features":"山地环境与红色叙事结合度高，具有较好传播场景。","address":"河南省济源市","specialties":["冬凌草","寺郎腰大葱","济源土馍","鸡蛋不翻","玉皇李"]}
-]
+];

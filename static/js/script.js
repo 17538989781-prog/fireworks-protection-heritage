@@ -2,7 +2,7 @@
 let allHeritageData = [];
 let currentFilter = "all";
 let currentSearch = "";
-const FALLBACK_IMAGE = "https://via.placeholder.com/600x400/8b0000/ffffff?text=%E5%9B%BE%E7%89%87%E5%8A%A0%E8%BD%BD%E4%B8%AD";
+const FALLBACK_IMAGE = "./static/images/default-heritage.svg";
 
 function resolveImageUrl(imageUrl) {
     if (!imageUrl) return FALLBACK_IMAGE;
@@ -10,6 +10,54 @@ function resolveImageUrl(imageUrl) {
         return imageUrl;
     }
     return imageUrl.startsWith('./') ? imageUrl : `./${imageUrl}`;
+}
+
+function createCityPlaceholder(cityName) {
+    const city = cityName || "河南";
+    const svg = `
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800" viewBox="0 0 1200 800">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#7a1111"/>
+      <stop offset="100%" stop-color="#b92b2b"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="800" fill="url(#bg)"/>
+  <circle cx="230" cy="190" r="140" fill="rgba(255,255,255,0.08)"/>
+  <circle cx="980" cy="610" r="180" fill="rgba(255,255,255,0.08)"/>
+  <rect x="430" y="280" width="340" height="250" rx="12" fill="rgba(255,255,255,0.92)"/>
+  <rect x="390" y="250" width="420" height="36" rx="6" fill="#f2d7d7"/>
+  <rect x="490" y="340" width="220" height="26" rx="4" fill="#7a1111"/>
+  <rect x="490" y="388" width="220" height="26" rx="4" fill="#7a1111"/>
+  <rect x="490" y="436" width="220" height="26" rx="4" fill="#7a1111"/>
+  <text x="600" y="610" font-size="52" text-anchor="middle" fill="#ffffff" font-family="Microsoft YaHei, Arial, sans-serif">${city}红色遗址</text>
+</svg>`;
+    return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
+
+function getImageWithFallback(item) {
+    if (!item || !item.image) {
+        return createCityPlaceholder(item?.city);
+    }
+    return resolveImageUrl(item.image);
+}
+
+function applyHeritageData(data) {
+    allHeritageData = Array.isArray(data) ? data : [];
+    loadCities();
+    renderHeritageCards(allHeritageData);
+    updateResultCount(allHeritageData.length);
+}
+
+function loadScript(src) {
+    return new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = src;
+        script.async = true;
+        script.onload = resolve;
+        script.onerror = reject;
+        document.head.appendChild(script);
+    });
 }
 
 // DOM加载完成后执行
@@ -30,24 +78,28 @@ document.addEventListener('DOMContentLoaded', function() {
 // 加载遗址数据
 async function loadHeritageData() {
     try {
+        // 兼容直接双击 index.html（file://）场景：优先使用内置 JS 数据
+        if (window.location.protocol === 'file:') {
+            if (!window.HERITAGE_DATA) {
+                await loadScript('./heritage-data.js');
+            }
+            if (window.HERITAGE_DATA) {
+                applyHeritageData(window.HERITAGE_DATA);
+                return;
+            }
+            throw new Error('file 模式下未找到 heritage-data.js');
+        }
+
         const response = await fetch('./heritage-data.json');
         if (!response.ok) {
             throw new Error(`HTTP ${response.status}`);
         }
-        allHeritageData = await response.json();
-
-        // 加载城市列表
-        loadCities();
-
-        // 渲染遗址卡片
-        renderHeritageCards(allHeritageData);
-
-        // 更新结果计数
-        updateResultCount(allHeritageData.length);
+        const data = await response.json();
+        applyHeritageData(data);
     } catch (error) {
         console.error('加载数据失败:', error);
         document.getElementById('heritage-container').innerHTML =
-            '<div class="error-message"><p>数据加载失败，请刷新页面重试。</p></div>';
+            '<div class="error-message"><p>数据加载失败。若你是直接双击打开页面，请确认项目根目录存在 heritage-data.js。</p></div>';
     }
 }
 
@@ -136,7 +188,7 @@ function renderHeritageCards(data) {
 
         card.innerHTML = `
             <div class="card-img-container">
-                <img src="${resolveImageUrl(item.image)}" alt="${item.name}" class="card-img" loading="lazy" decoding="async" referrerpolicy="no-referrer">
+                <img src="${getImageWithFallback(item)}" alt="${item.name}" data-city="${item.city}" class="card-img" loading="lazy" decoding="async" referrerpolicy="no-referrer">
             </div>
             <div class="card-content">
                 <h3 class="card-title"><i class="fas fa-landmark"></i> ${item.name}</h3>
@@ -154,7 +206,9 @@ function renderHeritageCards(data) {
 
     container.querySelectorAll('.card-img').forEach(img => {
         img.addEventListener('error', function() {
-            this.src = FALLBACK_IMAGE;
+            this.onerror = null;
+            const city = this.getAttribute('data-city') || "河南";
+            this.src = createCityPlaceholder(city);
         });
     });
 }
@@ -276,12 +330,13 @@ function openModal(heritage) {
 
     // 填充数据
     title.textContent = heritage.name;
-    img.src = resolveImageUrl(heritage.image);
+    img.src = getImageWithFallback(heritage);
     img.alt = heritage.name;
     img.loading = 'eager';
     img.decoding = 'async';
     img.onerror = function() {
-        img.src = FALLBACK_IMAGE;
+        img.onerror = null;
+        img.src = createCityPlaceholder(heritage.city);
     };
     basicInfo.textContent = heritage.basicInfo;
     history.textContent = heritage.history;

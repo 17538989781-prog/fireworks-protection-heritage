@@ -1,18 +1,19 @@
-# 薪火护遗（静态版）
+# 薪火护遗（纯静态单页）
 
-这个仓库已经改造成可直接静态部署版本。
+这是一个纯前端静态网页项目，不依赖后端服务。
 
-## 一句话使用
+## 直接使用
 
-把代码推送到 Gitee 仓库并开启 Pages，即可直接访问，无需本地运行 Python、Flask 或其他命令。
+- 本地双击 `index.html` 可直接查看
+- 推送到 Gitee 并开启 Pages 后可公网访问
 
 ## 目录说明
 
-- `index.html`：站点入口
-- `static/`：前端资源
-- `heritage-data.json`：页面数据源（已内置，可直接运行）
-- `generate_data.py`：可选数据生成脚本（仅在你要从 docx 重新生成数据时使用）
+- `index.html`：网页入口
+- `static/`：样式、脚本、图片资源
+- `heritage-data.json`：线上访问时使用的数据
+- `heritage-data.js`：本地双击 `index.html` 时的兜底数据
 
 ## 部署
 
-参考 `DEPLOY_GITEE_PAGES.md`。
+详见 `DEPLOY_GITEE_PAGES.md`。
