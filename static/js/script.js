@@ -4,6 +4,7 @@ let currentFilter = "all";
 let currentSearch = "";
 let modalCarouselTimer = null;
 const LOCAL_IMAGE_EXTENSIONS = ["jpg", "jpeg", "png", "webp"];
+const MAX_CITY_ALBUM_IMAGES = 12;
 
 function resolveImageUrl(imageUrl) {
     if (!imageUrl) return "";
@@ -16,32 +17,20 @@ function resolveImageUrl(imageUrl) {
 function getImageCandidates(item) {
     const candidates = [];
     const city = item?.city || "河南";
-    const siteNameRaw = (item?.name || "").trim();
-    const siteNameSafe = siteNameRaw.replace(/[\\/:*?"<>|]/g, "").replace(/\s+/g, "");
 
-    // 1) 仅使用本地图片：按城市名放到 static/temp_images
+    // 首屏只尝试少量候选，减少请求数量
     LOCAL_IMAGE_EXTENSIONS.forEach(ext => {
         candidates.push(`./static/temp_images/${city}.${ext}`);
         candidates.push(`./static/temp_images/${city}_1.${ext}`);
     });
 
-    // 1.1) 兼容另一套目录命名
+    // 兼容另一套目录命名
     LOCAL_IMAGE_EXTENSIONS.forEach(ext => {
         candidates.push(`./static/city-images/${city}.${ext}`);
         candidates.push(`./static/city-images/${city}_1.${ext}`);
     });
 
-    // 2) 尝试历史导出的 temp_images 命名（img_文件名_序号.jpg）
-    if (siteNameRaw) {
-        for (let i = 1; i <= 5; i += 1) {
-            LOCAL_IMAGE_EXTENSIONS.forEach(ext => {
-                candidates.push(`./static/temp_images/img_${siteNameRaw}_${i}.${ext}`);
-                candidates.push(`./static/temp_images/img_${siteNameSafe}_${i}.${ext}`);
-            });
-        }
-    }
-
-    // 3) 兼容数据中的图片字段
+    // 兼容数据中的图片字段
     if (item?.image) {
         const resolved = resolveImageUrl(item.image);
         if (resolved) candidates.push(resolved);
@@ -82,27 +71,21 @@ function stopModalCarousel() {
 function getCityAlbumCandidates(item) {
     const city = item?.city || "河南";
     const candidates = [];
-    for (let i = 1; i <= 8; i += 1) {
+    for (let i = 1; i <= MAX_CITY_ALBUM_IMAGES; i += 1) {
         LOCAL_IMAGE_EXTENSIONS.forEach(ext => {
             candidates.push(`./static/temp_images/${city}_${i}.${ext}`);
-            candidates.push(`./static/temp_images/${city}-${i}.${ext}`);
-            candidates.push(`./static/temp_images/${city}${i}.${ext}`);
-            candidates.push(`./static/city-images/${city}_${i}.${ext}`);
         });
     }
     return candidates;
 }
 
-function loadImageOnce(url, timeoutMs = 1500) {
+function loadImageOnce(url) {
     return new Promise((resolve, reject) => {
         const img = new Image();
-        const timer = setTimeout(() => reject(new Error("timeout")), timeoutMs);
         img.onload = () => {
-            clearTimeout(timer);
             resolve(url);
         };
         img.onerror = () => {
-            clearTimeout(timer);
             reject(new Error("error"));
         };
         img.src = url;
@@ -125,8 +108,12 @@ async function collectAvailableImages(candidates, limit = 6) {
 
 async function setupModalCarousel(imgElement, item) {
     stopModalCarousel();
+    const city = item?.city || "河南";
+    const coverCandidates = LOCAL_IMAGE_EXTENSIONS.map(ext => `./static/temp_images/${city}.${ext}`);
+    const cover = await collectAvailableImages(coverCandidates, 1);
     const albumCandidates = getCityAlbumCandidates(item);
-    const images = await collectAvailableImages(albumCandidates, 6);
+    const album = await collectAvailableImages(albumCandidates, 8);
+    const images = [...cover, ...album.filter(url => !cover.includes(url))];
 
     if (images.length > 0) {
         let idx = 0;
