@@ -2,44 +2,145 @@
 let allHeritageData = [];
 let currentFilter = "all";
 let currentSearch = "";
-const FALLBACK_IMAGE = "./static/images/default-heritage.svg";
+let modalCarouselTimer = null;
+const LOCAL_IMAGE_EXTENSIONS = ["jpg", "jpeg", "png", "webp"];
 
 function resolveImageUrl(imageUrl) {
-    if (!imageUrl) return FALLBACK_IMAGE;
+    if (!imageUrl) return "";
     if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://') || imageUrl.startsWith('data:')) {
         return imageUrl;
     }
     return imageUrl.startsWith('./') ? imageUrl : `./${imageUrl}`;
 }
 
-function createCityPlaceholder(cityName) {
-    const city = cityName || "河南";
-    const svg = `
-<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800" viewBox="0 0 1200 800">
-  <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#7a1111"/>
-      <stop offset="100%" stop-color="#b92b2b"/>
-    </linearGradient>
-  </defs>
-  <rect width="1200" height="800" fill="url(#bg)"/>
-  <circle cx="230" cy="190" r="140" fill="rgba(255,255,255,0.08)"/>
-  <circle cx="980" cy="610" r="180" fill="rgba(255,255,255,0.08)"/>
-  <rect x="430" y="280" width="340" height="250" rx="12" fill="rgba(255,255,255,0.92)"/>
-  <rect x="390" y="250" width="420" height="36" rx="6" fill="#f2d7d7"/>
-  <rect x="490" y="340" width="220" height="26" rx="4" fill="#7a1111"/>
-  <rect x="490" y="388" width="220" height="26" rx="4" fill="#7a1111"/>
-  <rect x="490" y="436" width="220" height="26" rx="4" fill="#7a1111"/>
-  <text x="600" y="610" font-size="52" text-anchor="middle" fill="#ffffff" font-family="Microsoft YaHei, Arial, sans-serif">${city}红色遗址</text>
-</svg>`;
-    return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+function getImageCandidates(item) {
+    const candidates = [];
+    const city = item?.city || "河南";
+    const siteNameRaw = (item?.name || "").trim();
+    const siteNameSafe = siteNameRaw.replace(/[\\/:*?"<>|]/g, "").replace(/\s+/g, "");
+
+    // 1) 仅使用本地图片：按城市名放到 static/temp_images
+    LOCAL_IMAGE_EXTENSIONS.forEach(ext => {
+        candidates.push(`./static/temp_images/${city}.${ext}`);
+        candidates.push(`./static/temp_images/${city}_1.${ext}`);
+    });
+
+    // 1.1) 兼容另一套目录命名
+    LOCAL_IMAGE_EXTENSIONS.forEach(ext => {
+        candidates.push(`./static/city-images/${city}.${ext}`);
+        candidates.push(`./static/city-images/${city}_1.${ext}`);
+    });
+
+    // 2) 尝试历史导出的 temp_images 命名（img_文件名_序号.jpg）
+    if (siteNameRaw) {
+        for (let i = 1; i <= 5; i += 1) {
+            LOCAL_IMAGE_EXTENSIONS.forEach(ext => {
+                candidates.push(`./static/temp_images/img_${siteNameRaw}_${i}.${ext}`);
+                candidates.push(`./static/temp_images/img_${siteNameSafe}_${i}.${ext}`);
+            });
+        }
+    }
+
+    // 3) 兼容数据中的图片字段
+    if (item?.image) {
+        const resolved = resolveImageUrl(item.image);
+        if (resolved) candidates.push(resolved);
+    }
+
+    return candidates;
 }
 
-function getImageWithFallback(item) {
-    if (!item || !item.image) {
-        return createCityPlaceholder(item?.city);
+function attachProgressiveImageFallback(imgElement, item) {
+    const candidates = getImageCandidates(item);
+    let index = 0;
+
+    const tryNext = () => {
+        if (index >= candidates.length) {
+            imgElement.src = "";
+            imgElement.style.display = "none";
+            return;
+        }
+        imgElement.style.display = "";
+        imgElement.src = candidates[index];
+        index += 1;
+    };
+
+    imgElement.onerror = function() {
+        tryNext();
+    };
+
+    tryNext();
+}
+
+function stopModalCarousel() {
+    if (modalCarouselTimer) {
+        clearInterval(modalCarouselTimer);
+        modalCarouselTimer = null;
     }
-    return resolveImageUrl(item.image);
+}
+
+function getCityAlbumCandidates(item) {
+    const city = item?.city || "河南";
+    const candidates = [];
+    for (let i = 1; i <= 8; i += 1) {
+        LOCAL_IMAGE_EXTENSIONS.forEach(ext => {
+            candidates.push(`./static/temp_images/${city}_${i}.${ext}`);
+            candidates.push(`./static/temp_images/${city}-${i}.${ext}`);
+            candidates.push(`./static/temp_images/${city}${i}.${ext}`);
+            candidates.push(`./static/city-images/${city}_${i}.${ext}`);
+        });
+    }
+    return candidates;
+}
+
+function loadImageOnce(url, timeoutMs = 1500) {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        const timer = setTimeout(() => reject(new Error("timeout")), timeoutMs);
+        img.onload = () => {
+            clearTimeout(timer);
+            resolve(url);
+        };
+        img.onerror = () => {
+            clearTimeout(timer);
+            reject(new Error("error"));
+        };
+        img.src = url;
+    });
+}
+
+async function collectAvailableImages(candidates, limit = 6) {
+    const available = [];
+    for (const url of candidates) {
+        if (available.length >= limit) break;
+        try {
+            const loaded = await loadImageOnce(url);
+            available.push(loaded);
+        } catch (err) {
+            // ignore and continue probing next candidate
+        }
+    }
+    return available;
+}
+
+async function setupModalCarousel(imgElement, item) {
+    stopModalCarousel();
+    const albumCandidates = getCityAlbumCandidates(item);
+    const images = await collectAvailableImages(albumCandidates, 6);
+
+    if (images.length > 0) {
+        let idx = 0;
+        imgElement.src = images[idx];
+        if (images.length > 1) {
+            modalCarouselTimer = setInterval(() => {
+                idx = (idx + 1) % images.length;
+                imgElement.src = images[idx];
+            }, 3000);
+        }
+        return;
+    }
+
+    attachProgressiveImageFallback(imgElement, item);
 }
 
 function applyHeritageData(data) {
@@ -188,7 +289,7 @@ function renderHeritageCards(data) {
 
         card.innerHTML = `
             <div class="card-img-container">
-                <img src="${getImageWithFallback(item)}" alt="${item.name}" data-city="${item.city}" class="card-img" loading="lazy" decoding="async" referrerpolicy="no-referrer">
+                <img alt="${item.name}" data-city="${item.city}" class="card-img" loading="lazy" decoding="async" referrerpolicy="no-referrer">
             </div>
             <div class="card-content">
                 <h3 class="card-title"><i class="fas fa-landmark"></i> ${item.name}</h3>
@@ -204,12 +305,13 @@ function renderHeritageCards(data) {
         container.appendChild(card);
     });
 
-    container.querySelectorAll('.card-img').forEach(img => {
-        img.addEventListener('error', function() {
-            this.onerror = null;
-            const city = this.getAttribute('data-city') || "河南";
-            this.src = createCityPlaceholder(city);
-        });
+    container.querySelectorAll('.heritage-card').forEach(card => {
+        const id = parseInt(card.getAttribute('data-id'));
+        const item = allHeritageData.find(row => row.id === id);
+        const img = card.querySelector('.card-img');
+        if (img && item) {
+            attachProgressiveImageFallback(img, item);
+        }
     });
 }
 
@@ -299,12 +401,14 @@ function setupModal() {
 
     // 点击关闭按钮关闭模态框
     closeBtn.addEventListener('click', function() {
+        stopModalCarousel();
         modal.style.display = 'none';
     });
 
     // 点击模态框外部关闭
     window.addEventListener('click', function(e) {
         if (e.target === modal) {
+            stopModalCarousel();
             modal.style.display = 'none';
         }
     });
@@ -312,6 +416,7 @@ function setupModal() {
     // 按ESC键关闭模态框
     document.addEventListener('keydown', function(e) {
         if (e.key === 'Escape') {
+            stopModalCarousel();
             modal.style.display = 'none';
         }
     });
@@ -330,14 +435,10 @@ function openModal(heritage) {
 
     // 填充数据
     title.textContent = heritage.name;
-    img.src = getImageWithFallback(heritage);
     img.alt = heritage.name;
     img.loading = 'eager';
     img.decoding = 'async';
-    img.onerror = function() {
-        img.onerror = null;
-        img.src = createCityPlaceholder(heritage.city);
-    };
+    setupModalCarousel(img, heritage);
     basicInfo.textContent = heritage.basicInfo;
     history.textContent = heritage.history;
     features.textContent = heritage.features;
