@@ -5,6 +5,7 @@ let currentSearch = "";
 let modalCarouselTimer = null;
 const LOCAL_IMAGE_EXTENSIONS = ["jpg", "jpeg", "png", "webp"];
 const MAX_CITY_ALBUM_IMAGES = 12;
+const MAX_MODAL_ROTATION_IMAGES = 4;
 
 function resolveImageUrl(imageUrl) {
     if (!imageUrl) return "";
@@ -79,6 +80,18 @@ function getCityAlbumCandidates(item) {
     return candidates;
 }
 
+function warmupCityImages(item) {
+    const city = item?.city || "河南";
+    const warmupUrls = LOCAL_IMAGE_EXTENSIONS.flatMap(ext => [
+        `./static/temp_images/${city}.${ext}`,
+        `./static/temp_images/${city}_1.${ext}`
+    ]);
+    warmupUrls.slice(0, 2).forEach(url => {
+        const img = new Image();
+        img.src = url;
+    });
+}
+
 function loadImageOnce(url, timeoutMs = 800) {
     return new Promise((resolve, reject) => {
         const img = new Image();
@@ -120,8 +133,8 @@ async function setupModalCarousel(imgElement, item) {
     const coverCandidates = LOCAL_IMAGE_EXTENSIONS.map(ext => `./static/temp_images/${city}.${ext}`);
     const cover = await collectAvailableImages(coverCandidates, 1);
     const albumCandidates = getCityAlbumCandidates(item);
-    const album = await collectAvailableImages(albumCandidates, 6);
-    const images = [...cover, ...album.filter(url => !cover.includes(url))];
+    const album = await collectAvailableImages(albumCandidates, MAX_MODAL_ROTATION_IMAGES);
+    const images = [...cover, ...album.filter(url => !cover.includes(url))].slice(0, MAX_MODAL_ROTATION_IMAGES);
 
     if (images.length > 1) {
         let idx = 0;
@@ -301,6 +314,7 @@ function renderHeritageCards(data) {
         const img = card.querySelector('.card-img');
         if (img && item) {
             attachProgressiveImageFallback(img, item);
+            card.addEventListener('mouseenter', () => warmupCityImages(item), { once: true });
         }
     });
 }
