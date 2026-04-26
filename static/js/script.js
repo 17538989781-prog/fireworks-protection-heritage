@@ -38,7 +38,7 @@ function warmupCityImages(item) {
     img.src = getCityCoverImage(item);
 }
 
-async function setupModalCarousel(imgElement, item) {
+function setupModalCarousel(imgElement, item) {
     // 单图模式：详情仅显示城市封面图
     setCityCoverImage(imgElement, item);
 }
