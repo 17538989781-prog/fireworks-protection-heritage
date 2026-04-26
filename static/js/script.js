@@ -79,13 +79,16 @@ function getCityAlbumCandidates(item) {
     return candidates;
 }
 
-function loadImageOnce(url) {
+function loadImageOnce(url, timeoutMs = 800) {
     return new Promise((resolve, reject) => {
         const img = new Image();
+        const timer = setTimeout(() => reject(new Error("timeout")), timeoutMs);
         img.onload = () => {
+            clearTimeout(timer);
             resolve(url);
         };
         img.onerror = () => {
+            clearTimeout(timer);
             reject(new Error("error"));
         };
         img.src = url;
@@ -109,25 +112,25 @@ async function collectAvailableImages(candidates, limit = 6) {
 async function setupModalCarousel(imgElement, item) {
     stopModalCarousel();
     const city = item?.city || "河南";
+    
+    // 先秒出首图，避免打开弹窗时卡顿
+    attachProgressiveImageFallback(imgElement, item);
+
+    // 后台收集轮播图，不阻塞首图显示
     const coverCandidates = LOCAL_IMAGE_EXTENSIONS.map(ext => `./static/temp_images/${city}.${ext}`);
     const cover = await collectAvailableImages(coverCandidates, 1);
     const albumCandidates = getCityAlbumCandidates(item);
-    const album = await collectAvailableImages(albumCandidates, 8);
+    const album = await collectAvailableImages(albumCandidates, 6);
     const images = [...cover, ...album.filter(url => !cover.includes(url))];
 
-    if (images.length > 0) {
+    if (images.length > 1) {
         let idx = 0;
         imgElement.src = images[idx];
-        if (images.length > 1) {
-            modalCarouselTimer = setInterval(() => {
-                idx = (idx + 1) % images.length;
-                imgElement.src = images[idx];
-            }, 3000);
-        }
-        return;
+        modalCarouselTimer = setInterval(() => {
+            idx = (idx + 1) % images.length;
+            imgElement.src = images[idx];
+        }, 3000);
     }
-
-    attachProgressiveImageFallback(imgElement, item);
 }
 
 function applyHeritageData(data) {
