@@ -2,29 +2,6 @@
 let allHeritageData = [];
 let currentFilter = "all";
 let currentSearch = "";
-let modalCarouselTimer = null;
-const MAX_MODAL_ROTATION_IMAGES = 4;
-const CITY_IMAGE_COUNT = {
-    "安阳": 6,
-    "商丘": 6,
-    "郑州": 4,
-    "洛阳": 6,
-    "开封": 7,
-    "南阳": 4,
-    "信阳": 14,
-    "周口": 3,
-    "驻马店": 6,
-    "新乡": 16,
-    "焦作": 12,
-    "平顶山": 5,
-    "许昌": 5,
-    "漯河": 5,
-    "三门峡": 3,
-    "鹤壁": 8,
-    "濮阳": 6,
-    "济源": 7
-};
-const MAX_MODAL_ROTATION_IMAGES = 4;
 
 function resolveImageUrl(imageUrl) {
     if (!imageUrl) return "";
@@ -53,79 +30,17 @@ function setCityCoverImage(imgElement, item) {
 }
 
 function stopModalCarousel() {
-    if (modalCarouselTimer) {
-        clearInterval(modalCarouselTimer);
-        modalCarouselTimer = null;
-    }
-}
-
-function getCityAlbumCandidates(item) {
-    const city = item?.city || "河南";
-    const candidates = [];
-    const count = CITY_IMAGE_COUNT[city] || 0;
-    const limit = Math.min(count, MAX_MODAL_ROTATION_IMAGES);
-    for (let i = 1; i <= limit; i += 1) {
-        candidates.push(`./static/temp_images/${city}_${i}.jpg`);
-    }
-    return candidates;
+    // 单图模式保留空实现，兼容现有调用
 }
 
 function warmupCityImages(item) {
-    const warmupUrls = [getCityCoverImage(item), ...getCityAlbumCandidates(item).slice(0, 1)];
-    warmupUrls.forEach(url => {
-        const img = new Image();
-        img.src = url;
-    });
-}
-
-function loadImageOnce(url, timeoutMs = 600) {
-    return new Promise((resolve, reject) => {
-        const img = new Image();
-        const timer = setTimeout(() => reject(new Error("timeout")), timeoutMs);
-        img.onload = () => {
-            clearTimeout(timer);
-            resolve(url);
-        };
-        img.onerror = () => {
-            clearTimeout(timer);
-            reject(new Error("error"));
-        };
-        img.src = url;
-    });
-}
-
-async function collectAvailableImages(candidates, limit = 6) {
-    const available = [];
-    for (const url of candidates) {
-        if (available.length >= limit) break;
-        try {
-            const loaded = await loadImageOnce(url);
-            available.push(loaded);
-        } catch (err) {
-            // ignore and continue probing next candidate
-        }
-    }
-    return available;
+    const img = new Image();
+    img.src = getCityCoverImage(item);
 }
 
 async function setupModalCarousel(imgElement, item) {
-    stopModalCarousel();
-    // 先秒出首图，避免打开弹窗时卡顿
+    // 单图模式：详情仅显示城市封面图
     setCityCoverImage(imgElement, item);
-
-    // 后台收集轮播图，不阻塞首图显示
-    const cover = [getCityCoverImage(item)];
-    const albumCandidates = getCityAlbumCandidates(item);
-    const album = await collectAvailableImages(albumCandidates, Math.max(0, MAX_MODAL_ROTATION_IMAGES - 1));
-    const images = [...cover, ...album.filter(url => !cover.includes(url))].slice(0, MAX_MODAL_ROTATION_IMAGES);
-
-    if (images.length > 1) {
-    let idx = 0;
-        modalCarouselTimer = setInterval(() => {
-            idx = (idx + 1) % images.length;
-            imgElement.src = images[idx];
-        }, 3000);
-    }
 }
 
 function applyHeritageData(data) {
