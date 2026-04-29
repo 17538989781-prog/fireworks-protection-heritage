@@ -2,6 +2,8 @@
 let allHeritageData = [];
 let currentFilter = "all";
 let currentSearch = "";
+const warmedCityImageUrls = new Set();
+let cityFilterBound = false;
 
 function resolveImageUrl(imageUrl) {
     if (!imageUrl) return "";
@@ -11,31 +13,53 @@ function resolveImageUrl(imageUrl) {
     return imageUrl.startsWith('./') ? imageUrl : `./${imageUrl}`;
 }
 
-function getCityCoverImage(item) {
-    const city = item?.city || "河南";
-    return `./static/temp_images/${city}.jpg`;
+function warmupCityImage(item) {
+    const url = resolveImageUrl(item?.image || "");
+    if (!url || warmedCityImageUrls.has(url)) return;
+    const img = new Image();
+    img.decoding = "async";
+    img.src = url;
+    warmedCityImageUrls.add(url);
+}
+
+function warmupInitialCityImages(data) {
+    const initialItems = (Array.isArray(data) ? data : []).slice(0, 4);
+    if (!initialItems.length) return;
+
+    const runner = () => initialItems.forEach(warmupCityImage);
+    if ("requestIdleCallback" in window) {
+        window.requestIdleCallback(runner, { timeout: 800 });
+        return;
+    }
+    setTimeout(runner, 200);
+}
+
+function normalizeSpecialties(value) {
+    if (Array.isArray(value)) {
+        return value.filter(Boolean).map(item => String(item).trim()).filter(Boolean);
+    }
+    if (typeof value === "string") {
+        return value
+            .split(/[、，,\s]+/)
+            .map(item => item.trim())
+            .filter(Boolean);
+    }
+    return [];
 }
 
 function setCityCoverImage(imgElement, item) {
-    const fallback = resolveImageUrl(item?.image || "");
+    const primary = resolveImageUrl(item?.image || "");
+    const defaultFallback = resolveImageUrl("./static/images/default-heritage.svg");
+
     imgElement.onerror = function() {
-        if (fallback && imgElement.src !== fallback) {
-            imgElement.src = fallback;
+        if (defaultFallback && imgElement.src !== defaultFallback) {
+            imgElement.src = defaultFallback;
             return;
         }
         imgElement.style.display = "none";
     };
     imgElement.style.display = "";
-    imgElement.src = getCityCoverImage(item);
-}
-
-function stopModalCarousel() {
-    // 单图模式保留空实现，兼容现有调用
-}
-
-function warmupCityImages(item) {
-    const img = new Image();
-    img.src = getCityCoverImage(item);
+    imgElement.src = primary || defaultFallback;
 }
 
 function setupModalCarousel(imgElement, item) {
@@ -46,8 +70,8 @@ function setupModalCarousel(imgElement, item) {
 function applyHeritageData(data) {
     allHeritageData = Array.isArray(data) ? data : [];
     loadCities();
-    renderHeritageCards(allHeritageData);
-    updateResultCount(allHeritageData.length);
+    filterAndRenderHeritage();
+    warmupInitialCityImages(allHeritageData);
 }
 
 function loadScript(src) {
@@ -65,9 +89,6 @@ function loadScript(src) {
 document.addEventListener('DOMContentLoaded', function() {
     // 加载遗址数据
     loadHeritageData();
-
-    // 设置城市筛选功能
-    setupCityFilter();
 
     // 设置搜索功能
     setupSearch();
@@ -120,21 +141,35 @@ function loadCities() {
         button.className = 'city-btn';
         button.setAttribute('data-city', city);
         button.innerHTML = `<i class="fas fa-city"></i> ${city}`;
-
-        button.addEventListener('click', function() {
-            // 更新按钮状态
-            document.querySelectorAll('.city-btn').forEach(btn => btn.classList.remove('active'));
-            this.classList.add('active');
-
-            // 更新当前筛选
-            currentFilter = city;
-
-            // 筛选并渲染遗址卡片
-            filterAndRenderHeritage();
-        });
-
         cityButtonsContainer.appendChild(button);
     });
+
+    // 当前筛选值失效时，自动回退到全部
+    if (currentFilter !== "all" && !cities.includes(currentFilter)) {
+        currentFilter = "all";
+    }
+    setActiveCityButton(currentFilter);
+    bindCityFilterDelegation();
+}
+
+function setActiveCityButton(city) {
+    document.querySelectorAll('.city-btn').forEach(btn => btn.classList.remove('active'));
+    const activeBtn = document.querySelector(`.city-btn[data-city="${city}"]`) ||
+        document.querySelector('.city-btn[data-city="all"]');
+    if (activeBtn) activeBtn.classList.add('active');
+}
+
+function bindCityFilterDelegation() {
+    if (cityFilterBound) return;
+    const cityButtonsContainer = document.getElementById('city-buttons');
+    cityButtonsContainer.addEventListener('click', function(e) {
+        const button = e.target.closest('.city-btn');
+        if (!button) return;
+        currentFilter = button.getAttribute('data-city') || 'all';
+        setActiveCityButton(currentFilter);
+        filterAndRenderHeritage();
+    });
+    cityFilterBound = true;
 }
 
 // 筛选并渲染遗址卡片
@@ -211,27 +246,9 @@ function renderHeritageCards(data) {
         const img = card.querySelector('.card-img');
         if (img && item) {
             setCityCoverImage(img, item);
-            card.addEventListener('mouseenter', () => warmupCityImages(item), { once: true });
+            card.addEventListener('mouseenter', () => warmupCityImage(item), { once: true });
+            card.addEventListener('touchstart', () => warmupCityImage(item), { once: true, passive: true });
         }
-    });
-}
-
-// 设置城市筛选功能
-function setupCityFilter() {
-    const cityButtons = document.querySelectorAll('.city-btn');
-
-    cityButtons.forEach(button => {
-        button.addEventListener('click', function() {
-            // 更新按钮状态
-            cityButtons.forEach(btn => btn.classList.remove('active'));
-            this.classList.add('active');
-
-            // 更新当前筛选
-            currentFilter = this.getAttribute('data-city');
-
-            // 筛选并渲染遗址卡片
-            filterAndRenderHeritage();
-        });
     });
 }
 
@@ -302,14 +319,12 @@ function setupModal() {
 
     // 点击关闭按钮关闭模态框
     closeBtn.addEventListener('click', function() {
-        stopModalCarousel();
         modal.style.display = 'none';
     });
 
     // 点击模态框外部关闭
     window.addEventListener('click', function(e) {
         if (e.target === modal) {
-            stopModalCarousel();
             modal.style.display = 'none';
         }
     });
@@ -317,7 +332,6 @@ function setupModal() {
     // 按ESC键关闭模态框
     document.addEventListener('keydown', function(e) {
         if (e.key === 'Escape') {
-            stopModalCarousel();
             modal.style.display = 'none';
         }
     });
@@ -347,12 +361,19 @@ function openModal(heritage) {
 
     // 填充特产
     specialtyContainer.innerHTML = '';
-    heritage.specialties.forEach(specialty => {
+    const specialties = normalizeSpecialties(heritage.specialties);
+    specialties.forEach(specialty => {
         const item = document.createElement('div');
         item.className = 'specialty-item';
         item.innerHTML = `<i class="fas fa-star"></i> ${specialty}`;
         specialtyContainer.appendChild(item);
     });
+    if (specialties.length === 0) {
+        const item = document.createElement('div');
+        item.className = 'specialty-item';
+        item.innerHTML = `<i class="fas fa-star"></i> 暂无特产信息`;
+        specialtyContainer.appendChild(item);
+    }
 
     // 显示模态框
     modal.style.display = 'block';
@@ -366,28 +387,3 @@ function updateResultCount(count) {
     const resultCount = document.getElementById('result-count');
     resultCount.textContent = `找到 ${count} 个遗址`;
 }
-
-// 添加一些动画效果
-function addCardAnimation() {
-    const cards = document.querySelectorAll('.heritage-card');
-    cards.forEach((card, index) => {
-        card.style.animationDelay = `${index * 0.1}s`;
-        card.classList.add('fade-in');
-    });
-}
-
-// 添加淡入动画
-const style = document.createElement('style');
-style.textContent = `
-    .fade-in {
-        animation: fadeIn 0.5s ease-out forwards;
-        opacity: 0;
-    }
-
-    @keyframes fadeIn {
-        to {
-            opacity: 1;
-        }
-    }
-`;
-document.head.appendChild(style);
